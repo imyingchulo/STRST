@@ -1,0 +1,5 @@
+#!/usr/bin/env python
+
+# This script is to make "strst" in comment line
+from strst.cli import main
+main()
