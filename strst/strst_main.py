@@ -19,7 +19,7 @@ class STRST(object):
         result and sub-folders will generate automatically when the user first run the package.
         """
         self.root_of_result = root_of_result if root_of_result else Path('{}/result'.format(os.getcwd())).resolve()
-        self.result_dirs = ['pre_ran_seq_qc', 'pred_rna_seq', 'post_align_qc', 'alignment', 'visulization', 'functional_analysis_result', 'gene_counts', 'trimmed','assemble','trinity']
+        self.result_dirs = ['pre_ran_seq_qc', 'pred_rna_seq', 'post_align_qc', 'alignment', 'visulization', 'functional_analysis_result', 'quantification_salmon', 'quantification_htseq','trimmed','trimmed_qc']
         self.init()
 
     def init(self):  # The setup_dir function is automatically create folders
@@ -31,26 +31,12 @@ class STRST(object):
             if not os.path.exists(dest):
                 os.mkdir(dest)
 
-    def print_msg_box(msg, indent=1, width=None, title=None):
-        """Print message-box with optional title."""
-        lines = msg.split('\n')
-        space = " " * indent
-        if not width:
-            width = max(map(len, lines))
-        box = f'╔{"═" * (width + indent * 2)}╗\n'  # upper_border
-        if title:
-            box += f'║{space}{title:<{width}}{space}║\n'  # title
-            box += f'║{space}{"-" * len(title):<{width}}{space}║\n'  # underscore
-        box += ''.join([f'║{space}{line:<{width}}{space}║\n' for line in lines])
-        box += f'╚{"═" * (width + indent * 2)}╝'  # lower_border
-        print(box)
-
-    def fastqc(self, fastqc, data):
+    def fastqc(self, fastqc, data, outputfolder="pre_ran_seq_qc"):
         for i in os.listdir(data):
-            if i.endswith('.fastq.gz'):
-                os.system("{} {}/{} -o result/{}".format(fastqc, data, i, "pre_ran_seq_qc"))
+            if i.endswith('.fastq.gz') or i.endswith('.fastq'):
+                print("{} {}/{} -o {}".format(fastqc, data, i, outputfolder))
 
-    def trimmed_adapter(self, cutadapt, adapter_fwd, adapter_rev, data):
+    def trimmed_adapter(self, cutadapt, adapter_fwd, adapter_rev, data, extention):
         # read files and create file name dictionary
         dict = {}
         for i in os.listdir(data):
@@ -60,20 +46,20 @@ class STRST(object):
                     dict[i] = file_name_r1
 
         for i in os.listdir(data):
-            if i.endswith('.fastq.gz') and "R1" in i:
+            if i.endswith(extention) and "R1" in i:
                 visited=set()
                 identifier = dict[i]
                 if identifier not in visited:
-                    r1 = "{}/{}R1{}".format(data, identifier, ".fastq.gz")
-                    r2 = "{}/{}R2{}".format(data, identifier, ".fastq.gz")
-                    r1_output = "result/trimmed/{}R1.trimmed.fastq.gz".format(identifier)
-                    r2_output = "result/trimmed/{}R2.trimmed.fastq.gz".format(identifier)
+                    r1 = "{}/{}R1.{}".format(data, identifier, extention)
+                    r2 = "{}/{}R2.{}".format(data, identifier, extention)
+                    r1_output = "result/trimmed/{}R1.trimmed.{}".format(identifier,extention)
+                    r2_output = "result/trimmed/{}R2.trimmed.{}".format(identifier,extention)
                     os.system("{} --minimum-length 1 -a {} -A {} -o {} -p {} {} {}".format(cutadapt, adapter_fwd, adapter_rev, r1_output, r2_output, r1, r2))
                 visited.add(identifier)
 
-    def star_genome_prep(self, star, gtf_dir, gtf_file, ref_fasta, extract_commands=''):
+    def star_genome_prep(self, star, gtf_dir, gtf_file, ref_fasta):
         os.system("{} --runMode genomeGenerate --genomeDir {} "
-                  "--genomeFastaFiles {} --sjdbGTFfile {} --sjdbOverhang 49 {}".format(star, gtf_dir, ref_fasta, gtf_file, extract_commands))
+                  "--genomeFastaFiles {} --sjdbGTFfile {} --sjdbOverhang 49".format(star, gtf_dir, ref_fasta, gtf_file))
 
     def star_alignment(self, star, data, gtf_dir, gtf_file, sep, threads="15", gz=" "):
         # read files name and creat the file dictionary
@@ -95,8 +81,8 @@ class STRST(object):
                         r2 = "{}/{}R2{}{}".format(data, identifier, sep, "fastq")
                         output = identifier[:-1]
                         print("read1:{}\nread2:{}".format(r1, r2))
-                        os.system("{} --runThreadN {} --genomeDir {} --sjdbGTFfile {} --genomeLoad NoSharedMemory --readMapNumber 10000"
-                                  " --outSAMtype BAM Unsorted --quantMode GeneCounts "
+                        os.system("{} --runThreadN {} --genomeDir {} --sjdbGTFfile {} --genomeLoad NoSharedMemory --readMapNumber 10000 "
+                                  "--outSAMtype BAM SortedByCoordinate --quantMode TranscriptomeSAM GeneCounts "
                                   " --readFilesIn {} {} --outFileNamePrefix result/alignment/{}".format(
                             star, threads, gtf_dir, gtf_file, r2, r1, output))
                         print("Finished {} and {} STAR alignment! searching for next pair...".format(r1, r2))
@@ -115,24 +101,45 @@ class STRST(object):
                         output = identifier[:-1]
                         print("read1:{}\nread2:{}".format(r1, r2))
                         print("{} --runThreadN {} --genomeDir {} --sjdbGTFfile {} --genomeLoad NoSharedMemory"
-                                  "--outSAMtype BAM Unsorted --quantMode TranscriptomeSAM GeneCounts --outFilterScoreMinOverLread 0.3 --readMapNumber 10000"
+                                  "--outSAMtype BAM SortedByCoordinate --quantMode TranscriptomeSAM GeneCounts --outFilterScoreMinOverLread 0.3 --readMapNumber 10000"
                                   "--readFilesIn {} {} --outFileNamePrefix result/alignment/{} --readFilesCommand zcat".format(star, threads,
                                                                                                                                gtf_dir, gtf_file, r1, r2, output))
                         print("Finished {}R1{}{} and {}R2{}{} STAR alignment! searching for next pair...".format(identifier, sep, "fastq.gz", identifier, sep, "fastq.gz"))
                         visited.add(identifier)
             print("ALL works done!")
 
-    def prepare_bamfiles_postqc(self, samtools, bam_dir="result/alignment/", ):
-        for i in os.listdir(bam_dir):
-            if i.endswith("bam"):
-                output_name = i.strip().split(".bam")
-                os.system("{} sort {}.bam {}_sorted.bam".format(samtools, output_name, output_name))
-                os.system("{} index {}_sorted.bam".format(samtools, output_name))
-                os.system("{} flagstat {}_sorted.bam {}_sorted.flagstat".format(samtools, output_name, output_name))
+    def bamfiles_postqc(self, samtools, bam_dir):
+            for i in os.listdir(bam_dir):
+                if i.endswith(".bam"):
+                    bam_name = i.strip().split(".out.bam")[0]
+                    os.system("{} sort -o {}/{}_sorted.bam {}/{}.out.bam".format(samtools, bam_dir, bam_name, bam_dir, bam_name))
+                    os.system("{} index {}/{}_sorted.bam".format(samtools, bam_dir, bam_name))
+                    os.system("{} flagstat {}/{}_sorted.bam > {}/{}_sorted.flagstat".format(samtools, bam_dir, bam_name, bam_dir, bam_name))
 
-    def htseq_count(self, htseq, gtf_file, bam_file, output, commands, output_dir="result/gene_counts"):
-        # -a 10 -r pos -t gene -i gene_id -m intersection-nonempty
-        os.system("{} {} -f bam {} {} > {}/{}".format(htseq, commands, bam_file, gtf_file, output_dir, output))
+    def qualimap_qc(self, qualimap, bam_dir, gff, output_dir):
+            for i in os.listdir(bam_dir):
+                if i.endswith("sorted.bam"):
+                    name=i.strip().split(".sorted.bam")[0]
+                    os.system("{} bamqc -bam {}/{} -gff {} -outdir {}/{}_bamqc_qualimap_report --java-mem-size=16G".format(qualimap,bam_dir,i,gff,output_dir,name))
+                    os.system("{} rnaseq -bam {}/{} -gtf {}  -outdir {}/{}_rnaseq_qualimap_report --java-mem-size=16G".format(qualimap,bam_dir,i,gff,output_dir,name))
+
+    def salmon_quantification(self, salmon, fasta, bam_dir, output_dir):
+        for i in os.listdir(bam_dir):
+            if i.endswith("_sorted.bam"):
+                bam = i.strip().split("_sorted.bam")[0]
+                os.system( "{} quant -t {} --libType A -a {}/{} -o {}/{}.salmon_quant --gcBias --seqBias".format(salmon, fasta, bam_dir, i, output_dir, bam))
+
+    def htseq_count(self, htseq, gtf_file, bam_dir, output_dir="result/gene_counts"):
+        for i in os.listdir(bam_dir):
+            if i.endswith("_sorted.bam"):
+                bam_file = i.strip().split("_sorted.bam")[0]
+                os.system("{} -f bam --stranded=no --mode=intersection-nonempty -r pos {}/{}_sorted.bam {} > {}/{}".format(htseq, bam_dir, bam_file, gtf_file, output_dir, bam_file))
+
+    def rsem_count(self, rsem, fasta_file, bam_dir, output_dir="result/gene_counts"):
+        for i in os.listdir(bam_dir):
+            if i.endswith(".toTranscriptome.out.bam"):
+                bam_file = i.strip().split(".toTranscriptome.out.bam")[0]
+                os.system("{} --no-bam-output --p 6 --alignments --paired-end {}/{}.toTranscriptome.out.bam {} {}/{}".format(rsem, bam_dir, bam_file, fasta_file, output_dir, bam_file))
 
     def trimmomatic_pairend(self,trimmomatic, data, sep, ends="fastq.gz", filter_condition="ILLUMINACLIP:TruSeq3-PE.fa:2:30:10:2:True LEADING:3 TRAILING:3 MINLEN:36"):
         # read files and create file name dictionary
@@ -201,7 +208,7 @@ class STRST(object):
                     output = "{}/{}".format(outputdir, i.split("\t")[1])
                     print("working on {} and {}".format(input1, input2))
                     os.system("{}/util/align_and_estimate_abundance.pl --seqType {} --transcripts {} --est_method {} --trinity_mode --output_dir {} --left {} --right {} ".format(trinity, seqtype, fasta, method, output, input1, input2))
-                    print("finished {} and {}, finding for next pa``ir".format(input1, input2))
+                    print("finished {} and {}, finding for next pair".format(input1, input2))
             print("All works done!")
 
         elif method == "RSEM":
