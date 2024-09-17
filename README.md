@@ -132,4 +132,4 @@ strst trinity_run_glimma --trinity_dir [An absolute directory to trinity_dir] --
 ```
 
 ### R script for GO visualization
-[Please check the plot here](./heatmap_topgenes.pdf)
+[embed]./heatmap_topgenes.pdf[embed]
