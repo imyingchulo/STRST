@@ -126,7 +126,10 @@ strst trinity_abundance_estimates_to_matrix --trinity_dir [An absolute directory
 ```
 strst trinity_run_de_analysis --trinity_dir [An absolute directory to trinity_dir] --method [edgeR or DESeq2] --matrix [Path to matrix, includes file name and extension] --output_name [output file name] --sample_file [An absolute directory to sample_file (generated from trinity_assemble)]
 ```
-5. Glimma visuliation
+5. Glimma visualization
 ```
 strst trinity_run_glimma --trinity_dir [An absolute directory to trinity_dir] --edger_dir [edgeR DE analysis output dir] --sample_file [An absolute directory to sample_file (generated from trinity_assemble)]
 ```
+
+### R script for GO visualization
+[Please check the plot here](./heatmap_topgenes.html)
